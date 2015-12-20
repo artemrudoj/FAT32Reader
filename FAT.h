@@ -16,7 +16,6 @@
 #ifndef FAT32READER_FAT_H
 #define FAT32READER_FAT_H
 class FSState {
-public:
     ssize_t mmap_size;
     char *currPath;
     DirectoryEntry current_dir;
@@ -24,20 +23,38 @@ public:
     uint32_t* FAT;
     char *fs_mmap;
     ssize_t cluster_size;
+public:
+    FSState(ssize_t mmap_size, char *currPath,  DirectoryEntry &current_dir, BootRecord *bR, uint32_t *FAT,
+            char *fs_mmap, ssize_t cluster_size);
+    FSState(ssize_t i, char *string, BootRecord *ptr, char *string1);
+    DirectoryEntry &getCurrent_dir()  {
+        return current_dir;
+    }
+
+    BootRecord *getBR()  {
+        return bR;
+    }
+
+    uint32_t *getFAT()  {
+        return FAT;
+    }
+
+    char *getFs_mmap()  {
+        return fs_mmap;
+    }
+
+    ssize_t getCluster_size()  {
+        return cluster_size;
+    }
 };
 
 class DirectoryIterator{
 public:
     DirectoryIterator(FSState *fsState, DirectoryEntry *dir);
-
     FSState * fsState;
     ssize_t clusterNumber;
     DirectoryEntry *currentDirectory;
-    DirectoryEntry *directory;
-    DirectoryEntry *firstDirecrotyInCluster;
-
     DirectoryEntry *getNextDir();
-
     ssize_t getNextCluster(FSState *fsState, uint32_t cluster_number);
 };
 
@@ -52,14 +69,11 @@ public:
     DirectoryEntry *getPtrToDirectory(char *path, DirectoryEntry *directory);
     void initFSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR);
     bool isItFile(DirectoryEntry* dir) { return false;}
-
     int compareFileAndDirecrtoryName(DirectoryEntry *dir, char *name);
-
     char *getFileName(DirectoryEntry *dir);
-
     char *readFile(FSState *fsState, DirectoryEntry *dir);
-
     DirectoryEntry *getInnerDirectories(FSState *fsState, DirectoryEntry *directories);
+    void getFirstLevelFile(char **path, char *first_level_file);
 };
 
 
