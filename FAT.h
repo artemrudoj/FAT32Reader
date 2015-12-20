@@ -12,14 +12,14 @@
 #include <sys/stat.h>
 #include <iostream>
 #include <string>
+#include <string.h>
 #ifndef FAT32READER_FAT_H
 #define FAT32READER_FAT_H
 class FSState {
 public:
     ssize_t mmap_size;
     char *currPath;
-    DirectoryEntry virtualRootDir;
-    DirectoryEntry *currDir;
+    DirectoryEntry current_dir;
     BootRecord *bR;
     uint32_t* FAT;
     char *fs_mmap;
@@ -37,8 +37,9 @@ public:
     DirectoryEntry *firstDirecrotyInCluster;
 
     DirectoryEntry *getNextDir();
-};
 
+    ssize_t getNextCluster(FSState *fsState, uint32_t cluster_number);
+};
 
 
 class FAT32Reader {
@@ -50,6 +51,15 @@ public:
     }
     DirectoryEntry *getPtrToDirectory(char *path, DirectoryEntry *directory);
     void initFSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR);
+    bool isItFile(DirectoryEntry* dir) { return false;}
+
+    int compareFileAndDirecrtoryName(DirectoryEntry *dir, char *name);
+
+    char *getFileName(DirectoryEntry *dir);
+
+    char *readFile(FSState *fsState, DirectoryEntry *dir);
+
+    DirectoryEntry *getInnerDirectories(FSState *fsState, DirectoryEntry *directories);
 };
 
 

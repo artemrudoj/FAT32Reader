@@ -16,14 +16,13 @@ int startsWith(const char *pre, const char *str) {
 void FAT32Reader::initFSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR){
     fsState = new FSState();
     fsState->bR = bR;
-    fsState->currPath = "/";//currently not implemented
+    fsState->currPath = "/";
     fsState->mmap_size = mmap_size;
     fsState->fs_mmap = fs_mmap;
     fsState->FAT = (uint32_t*) ( (char*) bR + bR->reserved_sectors* bR->bytes_per_sector);
     fsState->cluster_size = bR->bytes_per_sector * bR->sectors_per_cluster;
-    fsState->virtualRootDir.starting_cluster_hw = bR->cluster_number_of_the_root_directory>>16;
-    fsState->virtualRootDir.starting_cluster_lw = bR->cluster_number_of_the_root_directory & 0xFFFF;
-    fsState->currDir = &fsState->virtualRootDir;
+    fsState->current_dir.starting_cluster_hw = bR->cluster_number_of_the_root_directory>>16;
+    fsState->current_dir.starting_cluster_lw = bR->cluster_number_of_the_root_directory & 0xFFFF;
 }
 
 DirectoryEntry * FAT32Reader::getPtrToDirectory(char *path, DirectoryEntry*directory) {
@@ -31,13 +30,13 @@ DirectoryEntry * FAT32Reader::getPtrToDirectory(char *path, DirectoryEntry*direc
         while (path[0] == '/') {
             path++;
         }
-        directory = &fsState->virtualRootDir;
+        directory = &fsState->current_dir;
         if ( strlen(path)==0){
             return directory;
         }
     }
     if (directory == NULL){
-        directory = fsState->currDir;
+        directory = &fsState->current_dir;
         if( strlen(path)==0){
             return directory;
         }
@@ -55,7 +54,8 @@ DirectoryEntry * FAT32Reader::getPtrToDirectory(char *path, DirectoryEntry*direc
         path++;
     }
     DirectoryEntry* next_dir = getFileWithNameInDirectory(directory, first_level_file);
-    if (  next_dir!= NULL && next_dir->starting_cluster_lw == 0 &&  next_dir->starting_cluster_hw == 0) next_dir = &fsState->virtualRootDir;
+    if (  next_dir!= NULL && next_dir->starting_cluster_lw == 0 &&  next_dir->starting_cluster_hw == 0)
+        next_dir = &fsState->current_dir;
     if ( next_dir!= NULL){ // directory ( file) was not found
         if ( strlen(path) == 0){ // if it is last part of the path.
             return next_dir;
@@ -70,24 +70,22 @@ char *getPtrToFile( FSState* fsState, uint32_t cluster_number) {
     return ((char*)bR) +
            (bR->reserved_sectors +
             bR->number_of_copies_of_fat * bR->number_of_sectors_per_fat +
+                   //TODO
             (cluster_number - 2) * bR->sectors_per_cluster
            ) * bR->bytes_per_sector;
 }
 
-DirectoryEntry *getInnerDirectories(FSState* fsState, DirectoryEntry *directories) {
+DirectoryEntry *FAT32Reader::getInnerDirectories(FSState* fsState, DirectoryEntry *directories) {
     uint32_t next_dir_cluster_number = directories->starting_cluster_hw;
     next_dir_cluster_number <<= 16;
     next_dir_cluster_number += directories->starting_cluster_lw;
     return (DirectoryEntry*) getPtrToFile(fsState, next_dir_cluster_number);
 }
 
-ssize_t getNextCluster( FSState* fsState, uint32_t cluster_number){
+ssize_t DirectoryIterator::getNextCluster( FSState* fsState, uint32_t cluster_number){
     ssize_t next_cluster_number = fsState->FAT[cluster_number];
-    if ( next_cluster_number >= 0xFFFFFFF){
-        return 0;
-    }
+    return next_cluster_number;
 }
-
 
 DirectoryIterator::DirectoryIterator(FSState* fsState, DirectoryEntry* dir){
     this->fsState = fsState;
@@ -96,8 +94,6 @@ DirectoryIterator::DirectoryIterator(FSState* fsState, DirectoryEntry* dir){
     this->currentDirectory = ( DirectoryEntry* )getPtrToFile(fsState, this->clusterNumber );
     this->firstDirecrotyInCluster = this->currentDirectory;
 }
-
-
 
 void destroyDirectoryIterator(DirectoryIterator* dirIter){
     if ( dirIter != NULL){
@@ -125,6 +121,7 @@ DirectoryEntry* DirectoryIterator::getNextDir(){
             this->currentDirectory = NULL;
             return NULL;
         }
+        //TODO
         if ( this->currentDirectory->glags==0x0F){ // copy of file
             continue;
         }
@@ -135,7 +132,7 @@ DirectoryEntry* DirectoryIterator::getNextDir(){
     return NULL;
 }
 
-char* getFileName( DirectoryEntry* dir){
+char* FAT32Reader::getFileName( DirectoryEntry* dir){
     int i;
     char fname[FILE_NAME_MAX_LEN+1];
     char fname_extension[FILE_EXTENSIO_MAX_LEN+1];
@@ -156,7 +153,7 @@ char* getFileName( DirectoryEntry* dir){
     return file_name;
 }
 
-int compareFileAndDirecrtoryName(DirectoryEntry *dir, char *name){
+int FAT32Reader::compareFileAndDirecrtoryName(DirectoryEntry *dir, char *name){
     char* file_name = getFileName( dir);
     int result = strcmp( file_name, name);
     free( file_name);
@@ -176,7 +173,7 @@ DirectoryEntry *FAT32Reader::getFileWithNameInDirectory(DirectoryEntry* dir, cha
     return nextDir;
 }
 
-char *readFile(FSState* fsState, DirectoryEntry *dir) {
+char * FAT32Reader::readFile(FSState* fsState, DirectoryEntry *dir) {
     ssize_t size_to_copy = dir->file_size;
     uint32_t cluster_number = (dir->starting_cluster_hw << 16) + dir->starting_cluster_lw;
     char *data = (char*) malloc(size_to_copy);
@@ -198,11 +195,15 @@ int Command::performCommand(char *line) {
         while (line[0] == ' ') line++;
         line[ strlen(line) == 0? 0 : strlen(line) -1  ] = 0;
         DirectoryEntry *dir = fat32Reader->getPtrToDirectory(line , NULL);
+        if (fat32Reader->isItFile(dir)) {
+            printf("is not directory\n");
+            return 0;
+        }
         if (dir != NULL) {
             DirectoryIterator *dirIter = new DirectoryIterator(fat32Reader->getFsState(), dir);
             DirectoryEntry *nextDir = NULL;
             while ((nextDir = dirIter->getNextDir()) != NULL){
-                char* fname = getFileName(nextDir);
+                char* fname = fat32Reader->getFileName(nextDir);
                 int day_of_month = (nextDir->date & 0x1f);
                 int month = ((nextDir->date >> 5) & 0x0f);
                 int year = (nextDir->date >> 9) & 0x7f;
@@ -223,10 +224,10 @@ int Command::performCommand(char *line) {
         char* data;
         line += 3;
         while (line[0] == ' ') line++;
-        line[ strlen(line) == 0? 0 : strlen(line) -1  ] = 0;
+        line[ strlen(line) == 0 ? 0 : strlen(line) -1  ] = 0;
         DirectoryEntry *dir = fat32Reader->getPtrToDirectory(line , NULL);
         if (dir != NULL) {
-            data = readFile(fat32Reader->getFsState(),dir);
+            data = fat32Reader->readFile(fat32Reader->getFsState(),dir);
             ssize_t  i = 0;
             for( ; i < dir->file_size; i++){
                 //if ( data[i] <= 'Z' && data[i]>= '0') {// need filter
