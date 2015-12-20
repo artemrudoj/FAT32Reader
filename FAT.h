@@ -16,7 +16,7 @@
 #ifndef FAT32READER_FAT_H
 #define FAT32READER_FAT_H
 
-class FSState {
+class Context {
     ssize_t mmap_size;
     char *currPath;
     DirectoryEntry current_dir;
@@ -25,9 +25,9 @@ class FSState {
     char *fs_mmap;
     ssize_t cluster_size;
 public:
-    FSState(ssize_t mmap_size, char *currPath,  DirectoryEntry &current_dir, BootRecord *bR, uint32_t *FAT,
+    Context(ssize_t mmap_size, char *currPath,  DirectoryEntry &current_dir, BootRecord *bR, uint32_t *FAT,
             char *fs_mmap, ssize_t cluster_size);
-    FSState(ssize_t i, char *string, BootRecord *ptr, char *string1);
+    Context(ssize_t i, char *string, BootRecord *ptr, char *string1);
     DirectoryEntry &getCurrent_dir()  {
         return current_dir;
     }
@@ -46,30 +46,29 @@ public:
 };
 
 class DirectoryIterator{
-    FSState * fsState;
+    Context *currentContext;
     ssize_t clusterNumber;
     DirectoryEntry *currentDirectory;
 public:
-    DirectoryIterator(FSState *fsState, DirectoryEntry *dir);
+    DirectoryIterator(Context *fsState, DirectoryEntry *dir);
     DirectoryEntry *getNextDir();
-    ssize_t getNextCluster(FSState *fsState, uint32_t cluster_number);
+    ssize_t getNextCluster(Context *fsState, uint32_t cluster_number);
 };
 
 
 class FAT32Reader {
-    DirectoryEntry *getFileWithNameInDirectory(DirectoryEntry *dir, char *name);
-    FSState *fsState;
+    DirectoryEntry *getDirEntryByName(DirectoryEntry *dir, char *name);
+    Context *currentContext;
 public:
-    FSState *getFsState() const {
-        return fsState;
+    Context *getCurrentContext() const {
+        return currentContext;
     }
     DirectoryEntry *getPtrToDirectory(char *path, DirectoryEntry *directory);
     void initFSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR);
     bool isItFile(DirectoryEntry* dir) { return false;}
-    int compareFileAndDirecrtoryName(DirectoryEntry *dir, char *name);
+    int isEqualsNames(DirectoryEntry *dir, char *name);
     char *getFileName(DirectoryEntry *dir);
     char *readFile(DirectoryEntry *fsState);
-    DirectoryEntry *getInnerDirectories(FSState *fsState, DirectoryEntry *directories);
     void getFirstLevelFile(char **path, char *first_level_file);
 };
 
