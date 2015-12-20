@@ -14,8 +14,8 @@ int startsWith(const char *pre, const char *str) {
     return lenstr < lenpre ? 0 : strncmp(pre, str, lenpre) == 0;
 }
 
-FSState* FAT32Reader::initFSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR){
-    FSState* fsState = (FSState*) malloc(sizeof(FSState));
+void FAT32Reader::initFSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR){
+    fsState = new FSState();
     fsState->bR = bR;
     fsState->currPath = "/";//currently not implemented
     fsState->mmap_size = mmap_size;
@@ -25,7 +25,6 @@ FSState* FAT32Reader::initFSState(char *fs_mmap, ssize_t mmap_size, char *path, 
     fsState->virtualRootDir.starting_cluster_hw = bR->cluster_number_of_the_root_directory>>16;
     fsState->virtualRootDir.starting_cluster_lw = bR->cluster_number_of_the_root_directory & 0xFFFF;
     fsState->currDir = &fsState->virtualRootDir;
-    return fsState;
 }
 void destroyFSState(FSState* fsState){
     free(fsState);
@@ -207,7 +206,7 @@ int Command::performCommand(char *line) {
         line[ strlen(line) == 0? 0 : strlen(line) -1  ] = 0;
         DirectoryEntry *dir = fat32Reader->getPtrToDirectory(line , NULL);
         if (dir != NULL) {
-            DirectoryIterator *dirIter = createDirectoryIterator(fat32Reader->fsState, dir);
+            DirectoryIterator *dirIter = createDirectoryIterator(fat32Reader->getFsState(), dir);
             DirectoryEntry *nextDir = NULL;
             while ((nextDir = getNextDir(dirIter)) != NULL){
                 char* fname = getFileName(nextDir);
@@ -234,7 +233,7 @@ int Command::performCommand(char *line) {
         line[ strlen(line) == 0? 0 : strlen(line) -1  ] = 0;
         DirectoryEntry *dir = fat32Reader->getPtrToDirectory(line , NULL);
         if (dir != NULL) {
-            data = readFile(fat32Reader->fsState,dir);
+            data = readFile(fat32Reader->getFsState(),dir);
             ssize_t  i = 0;
             for( ; i < dir->file_size; i++){
                 //if ( data[i] <= 'Z' && data[i]>= '0') {// need filter
@@ -272,7 +271,7 @@ int Command::initFAT32Reader(char *filename) {
     }
     char *boot_record_start_byte = DEFAULT_OFFSET_TO_BOOT_RECORD + mmap_start;
     BootRecord *bR = (BootRecord *) boot_record_start_byte;
-    fat32Reader->fsState = fat32Reader->initFSState(mmap_start, sb.st_size, "/", bR);
+    fat32Reader->initFSState(mmap_start, sb.st_size, "/", bR);
     return 0;
 }
 
@@ -281,8 +280,4 @@ Command::~Command() {
     munmap(mmap_start, sb.st_size);
     delete(fat32Reader);
     close(fd);
-}
-
-FSState::FSState() {
-
 }

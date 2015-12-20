@@ -18,19 +18,12 @@ class FSState {
 public:
     ssize_t mmap_size;
     char *currPath;
-
     DirectoryEntry virtualRootDir;
     DirectoryEntry *currDir;
     BootRecord *bR;
     uint32_t* FAT;
     char *fs_mmap;
     ssize_t cluster_size;
-
-    FSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR);
-
-    FSState();
-
-    FSState *initFSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR);
 };
 
 class DirectoryIterator{
@@ -46,11 +39,14 @@ public:
 
 class FAT32Reader {
     DirectoryEntry *getFileWithNameInDirectory(DirectoryEntry *dir, char *name);
-public:
-    DirectoryEntry *getPtrToDirectory(char *path, DirectoryEntry *directory);
     FSState *fsState;
+public:
 
-    FSState *initFSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR);
+    FSState *getFsState() const {
+        return fsState;
+    }
+    DirectoryEntry *getPtrToDirectory(char *path, DirectoryEntry *directory);
+    void initFSState(char *fs_mmap, ssize_t mmap_size, char *path, BootRecord *bR);
 };
 
 
