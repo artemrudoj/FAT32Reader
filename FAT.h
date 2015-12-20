@@ -28,11 +28,15 @@ public:
 
 class DirectoryIterator{
 public:
+    DirectoryIterator(FSState *fsState, DirectoryEntry *dir);
+
     FSState * fsState;
     ssize_t clusterNumber;
     DirectoryEntry *currentDirectory;
     DirectoryEntry *directory;
     DirectoryEntry *firstDirecrotyInCluster;
+
+    DirectoryEntry *getNextDir();
 };
 
 
@@ -41,7 +45,6 @@ class FAT32Reader {
     DirectoryEntry *getFileWithNameInDirectory(DirectoryEntry *dir, char *name);
     FSState *fsState;
 public:
-
     FSState *getFsState() const {
         return fsState;
     }

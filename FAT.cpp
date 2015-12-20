@@ -6,7 +6,6 @@
 #define FILE_EXTENSIO_MAX_LEN 3
 #define DEFAULT_OFFSET_TO_BOOT_RECORD 0//32256
 
-//BootRecord *bR;
 
 int startsWith(const char *pre, const char *str) {
     size_t lenpre = strlen(pre),
@@ -25,9 +24,6 @@ void FAT32Reader::initFSState(char *fs_mmap, ssize_t mmap_size, char *path, Boot
     fsState->virtualRootDir.starting_cluster_hw = bR->cluster_number_of_the_root_directory>>16;
     fsState->virtualRootDir.starting_cluster_lw = bR->cluster_number_of_the_root_directory & 0xFFFF;
     fsState->currDir = &fsState->virtualRootDir;
-}
-void destroyFSState(FSState* fsState){
-    free(fsState);
 }
 
 DirectoryEntry * FAT32Reader::getPtrToDirectory(char *path, DirectoryEntry*directory) {
@@ -80,7 +76,7 @@ char *getPtrToFile( FSState* fsState, uint32_t cluster_number) {
 
 DirectoryEntry *getInnerDirectories(FSState* fsState, DirectoryEntry *directories) {
     uint32_t next_dir_cluster_number = directories->starting_cluster_hw;
-    next_dir_cluster_number <<=16;
+    next_dir_cluster_number <<= 16;
     next_dir_cluster_number += directories->starting_cluster_lw;
     return (DirectoryEntry*) getPtrToFile(fsState, next_dir_cluster_number);
 }
@@ -93,18 +89,15 @@ ssize_t getNextCluster( FSState* fsState, uint32_t cluster_number){
 }
 
 
-DirectoryIterator* createDirectoryIterator(FSState* fsState, DirectoryEntry* dir){
-    DirectoryIterator* dirIter = (DirectoryIterator*)malloc(sizeof(DirectoryIterator));
-    dirIter->fsState = fsState;
-    dirIter->clusterNumber =(dir->starting_cluster_hw << 16) + dir->starting_cluster_lw;
-    dirIter->directory = dir;
-    dirIter->currentDirectory = ( DirectoryEntry* )getPtrToFile(fsState, dirIter->clusterNumber );
-    dirIter->firstDirecrotyInCluster = dirIter->currentDirectory;
-    if ( dirIter->currentDirectory != NULL){
-        return dirIter;
-    }
-    return NULL;
+DirectoryIterator::DirectoryIterator(FSState* fsState, DirectoryEntry* dir){
+    this->fsState = fsState;
+    this->clusterNumber =(dir->starting_cluster_hw << 16) + dir->starting_cluster_lw;
+    this->directory = dir;
+    this->currentDirectory = ( DirectoryEntry* )getPtrToFile(fsState, this->clusterNumber );
+    this->firstDirecrotyInCluster = this->currentDirectory;
 }
+
+
 
 void destroyDirectoryIterator(DirectoryIterator* dirIter){
     if ( dirIter != NULL){
@@ -112,31 +105,31 @@ void destroyDirectoryIterator(DirectoryIterator* dirIter){
     }
 }
 
-DirectoryEntry* getNextDir(DirectoryIterator* dirIter){
-    if ( dirIter==NULL || dirIter->currentDirectory==NULL){
+DirectoryEntry* DirectoryIterator::getNextDir(){
+    if ( this==NULL || this->currentDirectory==NULL){
         return NULL;
     }
     while( 1 ){
-        if (  ( (char*) (dirIter->currentDirectory +1) - (char*) (dirIter->firstDirecrotyInCluster ) ) >= dirIter->fsState->cluster_size ){
-            dirIter->clusterNumber = getNextCluster(dirIter->fsState, dirIter->clusterNumber);
-            if ( dirIter->clusterNumber == 0 ){
-                dirIter->currentDirectory = NULL;
+        if (  ( (char*) (this->currentDirectory +1) - (char*) (this->firstDirecrotyInCluster ) ) >= this->fsState->cluster_size ){
+            this->clusterNumber = getNextCluster(this->fsState, this->clusterNumber);
+            if ( this->clusterNumber == 0 ){
+                this->currentDirectory = NULL;
                 return NULL;
             }
-            dirIter->currentDirectory = ( DirectoryEntry* ) getPtrToFile(dirIter->fsState, dirIter->clusterNumber );
-            dirIter->firstDirecrotyInCluster = dirIter->currentDirectory;
+            this->currentDirectory = ( DirectoryEntry* ) getPtrToFile(this->fsState, this->clusterNumber );
+            this->firstDirecrotyInCluster = this->currentDirectory;
         } else {
-            dirIter->currentDirectory++;
+            this->currentDirectory++;
         }
-        if ( ((char*)dirIter->currentDirectory)[0]==0){ // end of a directory
-            dirIter->currentDirectory = NULL;
+        if ( ((char*)this->currentDirectory)[0]==0){ // end of a directory
+            this->currentDirectory = NULL;
             return NULL;
         }
-        if ( dirIter->currentDirectory->glags==0x0F){ // copy of file
+        if ( this->currentDirectory->glags==0x0F){ // copy of file
             continue;
         }
-        if ( ((uint8_t*) dirIter->currentDirectory)[0] !=0xE5){
-            return dirIter->currentDirectory;
+        if ( ((uint8_t*) this->currentDirectory)[0] !=0xE5){
+            return this->currentDirectory;
         }
     }
     return NULL;
@@ -171,10 +164,10 @@ int compareFileAndDirecrtoryName(DirectoryEntry *dir, char *name){
 }
 
 DirectoryEntry *FAT32Reader::getFileWithNameInDirectory(DirectoryEntry* dir, char *name) {
-    DirectoryIterator *dirIter = createDirectoryIterator(fsState, dir);
+    DirectoryIterator *dirIter = new DirectoryIterator(fsState, dir);
 
     DirectoryEntry *nextDir = NULL;
-    while ((nextDir = getNextDir(dirIter)) != NULL){
+    while ((nextDir = dirIter->getNextDir()) != NULL){
         if (compareFileAndDirecrtoryName(nextDir, name) == 0) {
             break;
         }
@@ -206,9 +199,9 @@ int Command::performCommand(char *line) {
         line[ strlen(line) == 0? 0 : strlen(line) -1  ] = 0;
         DirectoryEntry *dir = fat32Reader->getPtrToDirectory(line , NULL);
         if (dir != NULL) {
-            DirectoryIterator *dirIter = createDirectoryIterator(fat32Reader->getFsState(), dir);
+            DirectoryIterator *dirIter = new DirectoryIterator(fat32Reader->getFsState(), dir);
             DirectoryEntry *nextDir = NULL;
-            while ((nextDir = getNextDir(dirIter)) != NULL){
+            while ((nextDir = dirIter->getNextDir()) != NULL){
                 char* fname = getFileName(nextDir);
                 int day_of_month = (nextDir->date & 0x1f);
                 int month = ((nextDir->date >> 5) & 0x0f);
@@ -276,7 +269,6 @@ int Command::initFAT32Reader(char *filename) {
 }
 
 Command::~Command() {
-    //destroyFSState(fat32Reader->fsState);
     munmap(mmap_start, sb.st_size);
     delete(fat32Reader);
     close(fd);
