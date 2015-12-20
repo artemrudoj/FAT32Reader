@@ -15,6 +15,7 @@
 #include <string.h>
 #ifndef FAT32READER_FAT_H
 #define FAT32READER_FAT_H
+
 class FSState {
     ssize_t mmap_size;
     char *currPath;
@@ -30,30 +31,26 @@ public:
     DirectoryEntry &getCurrent_dir()  {
         return current_dir;
     }
-
     BootRecord *getBR()  {
         return bR;
     }
-
     uint32_t *getFAT()  {
         return FAT;
     }
-
     char *getFs_mmap()  {
         return fs_mmap;
     }
-
     ssize_t getCluster_size()  {
         return cluster_size;
     }
 };
 
 class DirectoryIterator{
-public:
-    DirectoryIterator(FSState *fsState, DirectoryEntry *dir);
     FSState * fsState;
     ssize_t clusterNumber;
     DirectoryEntry *currentDirectory;
+public:
+    DirectoryIterator(FSState *fsState, DirectoryEntry *dir);
     DirectoryEntry *getNextDir();
     ssize_t getNextCluster(FSState *fsState, uint32_t cluster_number);
 };
@@ -71,7 +68,7 @@ public:
     bool isItFile(DirectoryEntry* dir) { return false;}
     int compareFileAndDirecrtoryName(DirectoryEntry *dir, char *name);
     char *getFileName(DirectoryEntry *dir);
-    char *readFile(FSState *fsState, DirectoryEntry *dir);
+    char *readFile(DirectoryEntry *fsState);
     DirectoryEntry *getInnerDirectories(FSState *fsState, DirectoryEntry *directories);
     void getFirstLevelFile(char **path, char *first_level_file);
 };

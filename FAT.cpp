@@ -49,6 +49,7 @@ DirectoryEntry * FAT32Reader::getPtrToDirectory(char *path, DirectoryEntry*direc
     }
     return NULL;
 }
+
 void FAT32Reader::getFirstLevelFile(char **path, char*first_level_file) {
     int i = 0;
     while( (*path)[0] !='/' && (*path)[0] != 0 && i < FILE_PATH_MAX_LEN){
@@ -156,7 +157,7 @@ DirectoryEntry *FAT32Reader::getFileWithNameInDirectory(DirectoryEntry* dir, cha
     return nextDir;
 }
 
-char * FAT32Reader::readFile(FSState* fsState, DirectoryEntry *dir) {
+char * FAT32Reader::readFile(DirectoryEntry *dir) {
     ssize_t size_to_copy = dir->file_size;
     uint32_t cluster_number = (dir->starting_cluster_hw << 16) + dir->starting_cluster_lw;
     char *data = (char*) malloc(size_to_copy);
@@ -198,7 +199,7 @@ int Command::performCommand(char *line) {
                 printf("%-15s%-10u%-23s%-5o\n" ,fname ,nextDir->file_size, date, nextDir->glags);
                 free(fname);
             }
-            destroyDirectoryIterator(dirIter);
+            delete(dirIter);
         } else {
             printf("cannot find dir\n");
         }
@@ -210,13 +211,11 @@ int Command::performCommand(char *line) {
         line[ strlen(line) == 0 ? 0 : strlen(line) -1  ] = 0;
         DirectoryEntry *dir = fat32Reader->getPtrToDirectory(line , NULL);
         if (dir != NULL) {
-            data = fat32Reader->readFile(fat32Reader->getFsState(),dir);
+            data = fat32Reader->readFile(dir);
             ssize_t  i = 0;
             for( ; i < dir->file_size; i++){
-                //if ( data[i] <= 'Z' && data[i]>= '0') {// need filter
                 printf("%c", data[i]);
-                fflush(stdout); // to avoid some problems
-                //}
+                fflush(stdout);
             }
         } else {
             printf("Can not find this directory");
