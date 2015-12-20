@@ -72,13 +72,6 @@ char *getPtrToFile( FSState* fsState, uint32_t cluster_number) {
            ) * bR->bytes_per_sector;
 }
 
-DirectoryEntry *FAT32Reader::getInnerDirectories(FSState* fsState, DirectoryEntry *directories) {
-    uint32_t next_dir_cluster_number = directories->starting_cluster_hw;
-    next_dir_cluster_number <<= 16;
-    next_dir_cluster_number += directories->starting_cluster_lw;
-    return (DirectoryEntry*) getPtrToFile(fsState, next_dir_cluster_number);
-}
-
 ssize_t DirectoryIterator::getNextCluster( FSState* fsState, uint32_t cluster_number){
     ssize_t next_cluster_number = fsState->getFAT()[cluster_number];
     return next_cluster_number;
@@ -161,7 +154,7 @@ char * FAT32Reader::readFile(DirectoryEntry *dir) {
     ssize_t size_to_copy = dir->file_size;
     uint32_t cluster_number = (dir->starting_cluster_hw << 16) + dir->starting_cluster_lw;
     char *data = (char*) malloc(size_to_copy);
-    char* file_block_ptr = (char*)getInnerDirectories( fsState, dir);
+    char* file_block_ptr = (char*)getPtrToFile( fsState, cluster_number);
     while (size_to_copy > 0){
         ssize_t offset = data - fsState->getFs_mmap();
         ssize_t memory_to_copy = size_to_copy > fsState->getCluster_size() ? fsState->getCluster_size() : size_to_copy;
